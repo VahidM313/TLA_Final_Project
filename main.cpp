@@ -21,16 +21,13 @@ public:
     // parse string to lhs and rhs
     void parseHs() {
         hs.erase(std::remove(hs.begin(), hs.end(), ' '), hs.end());
-        stringstream ss(hs);
+        size_t pos = hs.find("->");
+        lhs = hs.substr(0, pos);
+        string rhsString = hs.substr(pos + 2);
+        stringstream sss(rhsString);
         string token;
-        vector<string> temp;
-        while (getline(ss, token, '-'))
-            temp.push_back(token);
-        lhs = temp[0];
-        stringstream sss(temp[1].erase(0, 1));
         while (getline(sss, token, '|'))
             rhs.push_back(token);
-        vector<string>().swap(temp);
     }
 
     void print() {
@@ -230,13 +227,14 @@ public:
     }
 
     void rmUselessPro() {
-        vector<string> uselessVar;
-        vector<pair<rule, bool>> accessibleRule;
-        for (const auto &i: rules)
-            allVar.push_back(i.first.lhs);
-        // find accessible variable
-        accessibleVar.push_back(rules[0].first.lhs);
-        for(auto &i: rules) {
+        while(findUselessPro()) {
+            vector<string> uselessVar;
+            vector<pair<rule, bool>> accessibleRule;
+            for (const auto &i: rules)
+                allVar.push_back(i.first.lhs);
+            // find accessible variable
+            accessibleVar.push_back(rules[0].first.lhs);
+            for(auto &i: rules) {
                 for(auto &j: i.first.rhs) {
                     for(auto &k: allVar) {
                         if(i.first.lhs != k && j.find(k) != string::npos) {
@@ -244,96 +242,113 @@ public:
                         }
                     }
                 }
-        }
-        // remove duplicate
-        unordered_set<string> access;
-        auto end = std::remove_copy_if(accessibleVar.begin(), accessibleVar.end(), accessibleVar.begin(),
-                                       [&access](string const &i) { return !access.insert(i).second; });
-        accessibleVar.erase(end, accessibleVar.end());
-        // add non accessible var to vector
-        for (const auto &i: rules)
-            if (find(accessibleVar.begin(), accessibleVar.end(), i.first.lhs) == accessibleVar.end())
-                uselessVar.push_back(i.first.lhs);
-        // remove not accessible rule
-        for (const auto &i: rules) {
-            for (const auto &j: accessibleVar) {
-                if (i.first.lhs == j) {
-                    accessibleRule.emplace_back(i.first, false);
-                    break;
-                }
             }
-        }
-        rules.swap(accessibleRule);
-        accessibleRule.clear();
-        vector<pair<rule, bool>>().swap(accessibleRule);
-        accessibleVar.clear();
-        vector<string>().swap(accessibleVar);
-        // remove production contain useless variable
-        for (const auto &i: uselessVar) {
-            for (auto &j: rules) {
-                for (auto &k: j.first.rhs) {
-                    if (k.find(i) != string::npos) {
-                        j.first.rhs.erase(remove(j.first.rhs.begin(), j.first.rhs.end(), k), j.first.rhs.end());
+            // remove duplicate
+            unordered_set<string> access;
+            auto end = std::remove_copy_if(accessibleVar.begin(), accessibleVar.end(), accessibleVar.begin(),
+                                           [&access](string const &i) { return !access.insert(i).second; });
+            accessibleVar.erase(end, accessibleVar.end());
+            // add non accessible var to vector
+            for (const auto &i: rules)
+                if (find(accessibleVar.begin(), accessibleVar.end(), i.first.lhs) == accessibleVar.end())
+                    uselessVar.push_back(i.first.lhs);
+            // remove not accessible rule
+            for (const auto &i: rules) {
+                for (const auto &j: accessibleVar) {
+                    if (i.first.lhs == j) {
+                        accessibleRule.emplace_back(i.first, false);
+                        break;
                     }
                 }
             }
-        }
-        uselessVar.clear();
-        // find rules without terminal
-        for (auto &i: rules) {
-            for (auto &j: i.first.rhs) {
-                if (j.size() == 1) {
-                    i.second = true;
-                    break;
-                }
-            }
-            if (!i.second)
-                uselessVar.push_back(i.first.lhs);
-        }
-        allVar.clear();
-        for (const auto &i: rules)
-            if (i.second)
-                allVar.push_back(i.first.lhs);
-        // confirm that the rules of previous section should be removed
-        for (auto &i: rules) {
-            bool flag{false};
-            if (!i.second) {
-                for (const auto &j: i.first.rhs) {
-                    for (const auto &k: allVar) {
-                        if (j.find(k) != string::npos && j.find(i.first.lhs) == string::npos) {
-                            i.second = true;
-                            flag = true;
-                            break;
+            rules.swap(accessibleRule);
+            accessibleRule.clear();
+            vector<pair<rule, bool>>().swap(accessibleRule);
+            accessibleVar.clear();
+            vector<string>().swap(accessibleVar);
+            // remove production contain useless variable
+            for (const auto &i: uselessVar) {
+                for (auto &j: rules) {
+                    for (auto &k: j.first.rhs) {
+                        if (k.find(i) != string::npos) {
+                            j.first.rhs.erase(remove(j.first.rhs.begin(), j.first.rhs.end(), k), j.first.rhs.end());
                         }
                     }
-                    if (flag)
-                        break;
                 }
             }
-        }
-        // remove useless rule
-        for (const auto &i: rules) {
-            if (i.second) {
-                accessibleRule.emplace_back(i.first, false);
+            uselessVar.clear();
+            // find rules without terminal
+            rules[0].second = true;
+            for (auto &i: rules) {
+                for (auto &j: i.first.rhs) {
+                    if (j.size() == 1) {
+                        i.second = true;
+                        break;
+                    }
+                }
+                if (!i.second)
+                    uselessVar.push_back(i.first.lhs);
             }
-        }
-        rules.swap(accessibleRule);
-        accessibleRule.clear();
-        vector<pair<rule, bool>>().swap(accessibleRule);
-        // remove production contain useless variable
-        for (const auto &i: uselessVar) {
-            for (auto &j: rules) {
-                for (auto &k: j.first.rhs) {
-                    if (k.find(i) != string::npos) {
-                        j.first.rhs.erase(remove(j.first.rhs.begin(), j.first.rhs.end(), k), j.first.rhs.end());
+            allVar.clear();
+            for (const auto &i: rules)
+                if (i.second)
+                    allVar.push_back(i.first.lhs);
+            // confirm that the rules of previous section should be removed
+            for (auto &i: rules) {
+                bool flag{false};
+                if (!i.second) {
+                    for (const auto &j: i.first.rhs) {
+                        for (const auto &k: allVar) {
+                            if (j.find(k) != string::npos && j.find(i.first.lhs) == string::npos) {
+                                i.second = true;
+                                flag = true;
+                                break;
+                            }
+                        }
+                        if (flag)
+                            break;
                     }
                 }
             }
+            // remove useless rule
+            for (const auto &i: rules) {
+                if (i.second) {
+                    accessibleRule.emplace_back(i.first, false);
+                }
+            }
+            rules.swap(accessibleRule);
+            accessibleRule.clear();
+            vector<pair<rule, bool>>().swap(accessibleRule);
+            // remove production contain useless variable
+            for (const auto &i: uselessVar) {
+                for (auto &j: rules) {
+                    for (auto &k: j.first.rhs) {
+                        if (k.find(i) != string::npos) {
+                            j.first.rhs.erase(remove(j.first.rhs.begin(), j.first.rhs.end(), k), j.first.rhs.end());
+                        }
+                    }
+                }
+            }
+            if (DEBUG) {
+                print();
+                cout << "======================================\n";
+            }
         }
-        if (DEBUG) {
-            print();
-            cout << "======================================\n";
+    }
+
+    bool findUselessPro() {
+        bool flag = false;
+        for(const auto &i: rules) {
+            for(const auto &j: i.first.rhs) {
+                if(j.size() == 3) {
+                    flag = true;
+                    break;
+                }
+            }
+            if(flag)
+                break;
         }
+        return flag;
     }
 
     ~grammar() {
@@ -367,23 +382,7 @@ public:
         // find all terminal and make variable for them
         for (const auto &i: parse_grammar) {
             for (const auto &j: i.rhs) {
-                if (j.size() == 1) {
-                    string lhs{}, hs;
-                    for (auto &c: terminalToVariable) {
-                        if (c.rhs[0] == j) {
-                            lhs = c.lhs;
-                            break;
-                        }
-                    }
-                    if (lhs.empty()) {
-                        hs = name[0] + " -> " + j;
-                        name.erase(name.begin(), name.begin() + 1);
-                    } else {
-                        hs = lhs + " -> " + j;
-                    }
-                    rule r(hs);
-                    terminalToVariable.push_back(r);
-                } else {
+                if (j.size() != 1) {
                     for (auto k = 0; k < j.length(); k++) {
                         char c = j[k];
                         if (c == '<') {
@@ -421,10 +420,10 @@ public:
                 if (j.size() > 1) {
                     for (auto &k: terminalToVariable) {
                         while (j.find(k.rhs[0]) != string::npos) {
-                            j.replace(j.find(k.rhs[0]), 1, "(*)");
+                            j.replace(j.find(k.rhs[0]), 1, "$");
                         }
-                        while (j.find("(*)") != string::npos) {
-                            j.replace(j.find("(*)"), 3, k.lhs);
+                        while (j.find("$") != string::npos) {
+                            j.replace(j.find("$"), 1, k.lhs);
                         }
                     }
                 }
@@ -484,10 +483,10 @@ public:
         }
         if (DEBUG) {
             print();
-            cout << "======================================\n";
-            for (auto &i: cfg) {
-                cout << i.lhs << " -> " << i.rhs << endl;
-            }
+//            cout << "======================================\n";
+//            for (auto &i: cfg) {
+//                cout << i.lhs << " -> " << i.rhs << endl;
+//            }
             cout << "======================================\n";
         }
     }
@@ -567,20 +566,22 @@ public:
         for (const auto &i: gmr.rules)
             parse_grammar.push_back(i.first);
         cnf();
-        cyk(language);
+        cyk(std::move(language));
     }
 };
 
 int main() {
 
     if (DEBUG) {
-        const string g[]{"<S> -> <S>a | <S>b | <A>a | <B>b", "<A> -> <A><A> | <B>ca | #", "<B> -> b<B> | <C>f",
-                         "<C> -> a<C> | a<E> | #", "<E> -> e"};
-        const string language = "abbfcaba";
+        const string g[]{"<E> -> <E>+<T> | <E>-<T> | <T>", "<T> -> <T>*<F> | <T>/<F> | <F>", "<F> -> <F><G> | <G>",
+                         "<G> -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9"};
+        const string language = "15*9";
         for (const auto &i: g) {
             rule r(i);
             gmr.rules.emplace_back(r, false);
         }
+        gmr.print();
+        cout << "======================================\n";
         parser psr(language);
     } else {
         int n;
@@ -595,9 +596,3 @@ int main() {
         parser psr(language);
     }
 }
-
-// 3
-// <S> -> a<S>b | a<A> | b<B>
-// <A> -> a<A> | #
-// <B> -> b<B> | #
-// aaab
